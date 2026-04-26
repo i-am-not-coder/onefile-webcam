@@ -127,7 +127,7 @@
       </select>
     </label>
 
-    <button id="screenshotButton" disabled data-i18n="screenshot">スクリーンショット</button>
+    <button id="capturePhotoButton" disabled data-i18n="savePhoto">写真を保存</button>
     <button id="recordStartButton" disabled data-i18n="startRecording">録画開始</button>
     <button id="recordStopButton" disabled data-i18n="stopRecording">録画停止</button>
     <button id="fullscreenButton" data-i18n="fullscreen">全画面</button>
@@ -150,7 +150,7 @@
         autoSelect: "自動選択",
         mirror: "左右反転する",
         language: "言語",
-        screenshot: "スクリーンショット",
+        savePhoto: "写真を保存",
         startRecording: "録画開始",
         stopRecording: "録画停止",
         fullscreen: "全画面",
@@ -168,9 +168,9 @@
         showingCamera: "表示中: {name}",
         genericCamera: "カメラ",
 
-        screenshotNotReady: "まだスクリーンショットを撮れません",
+        photoNotReady: "まだ写真を保存できません",
         cannotGetVideoSize: "映像サイズを取得できません",
-        screenshotFailed: "スクリーンショット作成に失敗しました",
+        photoSaveFailed: "写真の保存に失敗しました",
         saved: "保存しました: {filename}",
 
         askRecordAudio: "録音も有効にしますか？\n\nOK: マイク音声も録画に含める\nキャンセル: 映像のみ録画する",
@@ -199,7 +199,7 @@
         autoSelect: "Auto Select",
         mirror: "Mirror",
         language: "Language",
-        screenshot: "Screenshot",
+        savePhoto: "Save Photo",
         startRecording: "Start Recording",
         stopRecording: "Stop Recording",
         fullscreen: "Fullscreen",
@@ -217,9 +217,9 @@
         showingCamera: "Showing: {name}",
         genericCamera: "Camera",
 
-        screenshotNotReady: "Screenshot is not ready yet.",
+        photoNotReady: "Photo capture is not ready yet.",
         cannotGetVideoSize: "Could not get the video size.",
-        screenshotFailed: "Failed to create screenshot.",
+        photoSaveFailed: "Failed to save photo.",
         saved: "Saved: {filename}",
 
         askRecordAudio: "Enable audio recording?\n\nOK: Include microphone audio\nCancel: Record video only",
@@ -250,7 +250,7 @@
     const cameraSelect = document.getElementById("cameraSelect");
     const mirrorCheckbox = document.getElementById("mirrorCheckbox");
     const languageSelect = document.getElementById("languageSelect");
-    const screenshotButton = document.getElementById("screenshotButton");
+    const capturePhotoButton = document.getElementById("capturePhotoButton");
     const recordStartButton = document.getElementById("recordStartButton");
     const recordStopButton = document.getElementById("recordStopButton");
     const fullscreenButton = document.getElementById("fullscreenButton");
@@ -415,7 +415,7 @@
       currentStream = null;
       video.srcObject = null;
 
-      screenshotButton.disabled = true;
+      capturePhotoButton.disabled = true;
       recordStartButton.disabled = true;
       recordStopButton.disabled = true;
     }
@@ -448,9 +448,9 @@
       URL.revokeObjectURL(url);
     }
 
-    function takeScreenshot() {
+    function capturePhoto() {
       if (!currentStream || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
-        setStatus("screenshotNotReady", {}, true);
+        setStatus("photoNotReady", {}, true);
         return;
       }
 
@@ -477,11 +477,11 @@
 
       canvas.toBlob(blob => {
         if (!blob) {
-          setStatus("screenshotFailed", {}, true);
+          setStatus("photoSaveFailed", {}, true);
           return;
         }
 
-        const filename = `webcam-${createTimestamp()}.png`;
+        const filename = `webcam-photo-${createTimestamp()}.png`;
         downloadBlob(blob, filename);
         setStatus("saved", { filename });
       }, "image/png");
@@ -607,7 +607,7 @@
 
       const shouldRecordAudio = window.confirm(t("askRecordAudio"));
 
-      currentRecordingFilename = `webcam-${createTimestamp()}.webm`;
+      currentRecordingFilename = `webcam-video-${createTimestamp()}.webm`;
       recordedChunks = [];
       fileWritable = null;
       fileWriteChain = Promise.resolve();
@@ -780,7 +780,7 @@
 
         await video.play();
 
-        screenshotButton.disabled = false;
+        capturePhotoButton.disabled = false;
         recordStartButton.disabled = false;
         recordStopButton.disabled = true;
 
@@ -806,7 +806,7 @@
         }
 
         setStatus(key, {}, true);
-        screenshotButton.disabled = true;
+        capturePhotoButton.disabled = true;
         recordStartButton.disabled = true;
         recordStopButton.disabled = true;
       }
@@ -834,7 +834,7 @@
       }
     });
 
-    screenshotButton.addEventListener("click", takeScreenshot);
+    capturePhotoButton.addEventListener("click", capturePhoto);
     recordStartButton.addEventListener("click", startRecording);
     recordStopButton.addEventListener("click", stopRecording);
 

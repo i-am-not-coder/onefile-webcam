@@ -1,20 +1,57 @@
-Download one HTML file. Open it locally. View, mirror, screenshot, and record your webcam.
+# onefile-webcam
 
-## Browser Support
+A tiny offline webcam viewer, snapshot tool, and recorder in a single HTML file.
+
+## Why
+
+Most webcam recorders are websites, desktop apps, browser extensions, or developer demos.
+
+**onefile-webcam is different:**
+
+- **One file** — just download and open the HTML file
+- **No install** — no app, extension, build step, or package manager
+- **No server** — runs directly from a local file
+- **No upload** — camera input stays on your machine
+- **Webcam-focused** — built for viewing, mirroring, snapshots, and recording
+- **Local-first recording** — saves recordings locally instead of uploading them anywhere
+
+## Use cases
+
+- Check a webcam quickly
+- Use a laptop as a simple camera monitor
+- Preview USB capture devices
+- Record from a document camera
+- Take quick webcam snapshots
+- Use a webcam tool in offline or restricted environments
+
+## Browser support
 
 Recommended:
 
-- Google Chrome
-- Microsoft Edge
+- Chrome
+- Edge
 - Other Chromium-based browsers
 
-Not currently supported:
+This project uses browser APIs for webcam access and local file saving. Direct local recording is currently focused on Chromium-based browsers.
 
-- Safari
-- Firefox
+## Privacy
 
-Why:
-This app uses the File System Access API for direct local recording without keeping the entire video in memory. This API is currently best supported in Chromium-based browsers.
+onefile-webcam does not require an account, server, cloud service, or upload.
+
+Your camera stream is handled locally by your browser.
+
+## How to use
+
+1. Download the HTML file.
+2. Open it in a supported browser.
+3. Allow camera access.
+4. View, mirror, take snapshots, or record.
+
+## What this is not
+
+This is not a video editor, meeting recorder, screen recorder, or cloud recording service.
+
+It is a small local webcam utility that fits in one HTML file.
 
 ## Attribution
 
