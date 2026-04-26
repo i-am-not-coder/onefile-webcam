@@ -1,0 +1,868 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Webcam Viewer</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #111;
+      color: #eee;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      grid-template-rows: auto 1fr;
+    }
+
+    header {
+      padding: 12px 16px;
+      background: #1b1b1b;
+      border-bottom: 1px solid #333;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+    }
+
+    label {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
+    }
+
+    select,
+    button {
+      font: inherit;
+      padding: 8px 10px;
+      border-radius: 8px;
+      border: 1px solid #555;
+      background: #222;
+      color: #eee;
+    }
+
+    button {
+      cursor: pointer;
+    }
+
+    button:hover {
+      background: #2e2e2e;
+    }
+
+    button:disabled {
+      cursor: not-allowed;
+      opacity: 0.5;
+    }
+
+    main {
+      display: grid;
+      place-items: center;
+      padding: 16px;
+    }
+
+    .stage {
+      width: min(100%, 1200px);
+      aspect-ratio: 16 / 9;
+      background: #000;
+      border-radius: 12px;
+      overflow: hidden;
+      display: grid;
+      place-items: center;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.45);
+    }
+
+    video {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      background: #000;
+    }
+
+    video.mirrored {
+      transform: scaleX(-1);
+    }
+
+    #status {
+      font-size: 13px;
+      color: #bbb;
+      margin-left: auto;
+    }
+
+    .error {
+      color: #ff8a8a;
+    }
+
+    .recording {
+      color: #ff6b6b;
+      font-weight: 700;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <button id="startButton" data-i18n="startCamera">カメラ開始</button>
+
+    <label>
+      <span data-i18n="camera">カメラ</span>:
+      <select id="cameraSelect">
+        <option value="" data-i18n="autoSelect">自動選択</option>
+      </select>
+    </label>
+
+    <label>
+      <input id="mirrorCheckbox" type="checkbox">
+      <span data-i18n="mirror">左右反転する</span>
+    </label>
+
+    <label>
+      <span data-i18n="language">言語</span>:
+      <select id="languageSelect">
+        <option value="ja">日本語</option>
+        <option value="en">English</option>
+      </select>
+    </label>
+
+    <button id="screenshotButton" disabled data-i18n="screenshot">スクリーンショット</button>
+    <button id="recordStartButton" disabled data-i18n="startRecording">録画開始</button>
+    <button id="recordStopButton" disabled data-i18n="stopRecording">録画停止</button>
+    <button id="fullscreenButton" data-i18n="fullscreen">全画面</button>
+
+    <span id="status">未開始</span>
+  </header>
+
+  <main>
+    <div class="stage">
+      <video id="video" autoplay playsinline muted></video>
+    </div>
+  </main>
+
+  <script>
+    const i18n = {
+      ja: {
+        appTitle: "Webcam Viewer",
+        startCamera: "カメラ開始",
+        camera: "カメラ",
+        autoSelect: "自動選択",
+        mirror: "左右反転する",
+        language: "言語",
+        screenshot: "スクリーンショット",
+        startRecording: "録画開始",
+        stopRecording: "録画停止",
+        fullscreen: "全画面",
+
+        notStarted: "未開始",
+        cameraStarting: "カメラ起動中...",
+        cameraListUnsupported: "このブラウザはカメラ一覧取得に対応していません",
+        getUserMediaUnsupported: "このブラウザは getUserMedia に対応していません",
+        mediaRecorderUnsupported: "このブラウザは MediaRecorder に対応していません",
+        cannotStartCamera: "カメラを開始できませんでした。",
+        cameraPermissionDenied: "カメラ権限が拒否されています。ブラウザのサイト設定で許可してください。",
+        cameraNotFound: "カメラが見つかりません。接続を確認してください。",
+        cameraInUse: "カメラを他のアプリが使用中の可能性があります。",
+        cameraConstraintFailed: "指定されたカメラ条件に合うデバイスがありません。",
+        showingCamera: "表示中: {name}",
+        genericCamera: "カメラ",
+
+        screenshotNotReady: "まだスクリーンショットを撮れません",
+        cannotGetVideoSize: "映像サイズを取得できません",
+        screenshotFailed: "スクリーンショット作成に失敗しました",
+        saved: "保存しました: {filename}",
+
+        askRecordAudio: "録音も有効にしますか？\n\nOK: マイク音声も録画に含める\nキャンセル: 映像のみ録画する",
+        startCameraFirst: "先にカメラを開始してください",
+        savePickerCanceled: "録画保存先の選択がキャンセルされました",
+        directSaveFailedFallback: "直接保存に失敗したため、停止時ダウンロード方式で録画します",
+        recordingStartFailed: "録画を開始できませんでした",
+        audioPermissionDenied: "マイク権限が拒否されたため、映像のみで録画します",
+        audioNotFound: "マイクが見つからないため、映像のみで録画します",
+        audioInUse: "マイクを使用できないため、映像のみで録画します",
+        audioEnabled: "音声あり",
+        audioDisabled: "音声なし",
+        recordingDirect: "録画中... 直接保存: {filename} / {audio}",
+        recordingFallback: "録画中... 停止時にダウンロードします / {audio}",
+        savingRecording: "録画を保存中...",
+        recordingSaved: "録画を保存しました: {filename}",
+        recordingSaveFailed: "録画ファイルの保存に失敗しました",
+
+        fullscreenFailed: "全画面表示に失敗しました",
+        cameraNumber: "カメラ {number}"
+      },
+      en: {
+        appTitle: "Webcam Viewer",
+        startCamera: "Start Camera",
+        camera: "Camera",
+        autoSelect: "Auto Select",
+        mirror: "Mirror",
+        language: "Language",
+        screenshot: "Screenshot",
+        startRecording: "Start Recording",
+        stopRecording: "Stop Recording",
+        fullscreen: "Fullscreen",
+
+        notStarted: "Not started",
+        cameraStarting: "Starting camera...",
+        cameraListUnsupported: "This browser does not support camera enumeration.",
+        getUserMediaUnsupported: "This browser does not support getUserMedia.",
+        mediaRecorderUnsupported: "This browser does not support MediaRecorder.",
+        cannotStartCamera: "Could not start the camera.",
+        cameraPermissionDenied: "Camera permission was denied. Please allow camera access in your browser settings.",
+        cameraNotFound: "No camera was found. Please check the connection.",
+        cameraInUse: "The camera may be in use by another application.",
+        cameraConstraintFailed: "No device matches the selected camera constraints.",
+        showingCamera: "Showing: {name}",
+        genericCamera: "Camera",
+
+        screenshotNotReady: "Screenshot is not ready yet.",
+        cannotGetVideoSize: "Could not get the video size.",
+        screenshotFailed: "Failed to create screenshot.",
+        saved: "Saved: {filename}",
+
+        askRecordAudio: "Enable audio recording?\n\nOK: Include microphone audio\nCancel: Record video only",
+        startCameraFirst: "Start the camera first.",
+        savePickerCanceled: "Recording save location selection was canceled.",
+        directSaveFailedFallback: "Direct saving failed. Recording will be downloaded when stopped.",
+        recordingStartFailed: "Could not start recording.",
+        audioPermissionDenied: "Microphone permission was denied. Recording video only.",
+        audioNotFound: "No microphone was found. Recording video only.",
+        audioInUse: "Could not use the microphone. Recording video only.",
+        audioEnabled: "Audio on",
+        audioDisabled: "Audio off",
+        recordingDirect: "Recording... Direct save: {filename} / {audio}",
+        recordingFallback: "Recording... It will be downloaded when stopped / {audio}",
+        savingRecording: "Saving recording...",
+        recordingSaved: "Recording saved: {filename}",
+        recordingSaveFailed: "Failed to save the recording file.",
+
+        fullscreenFailed: "Failed to enter fullscreen.",
+        cameraNumber: "Camera {number}"
+      }
+    };
+
+    const languageStorageKey = "webcamViewerLanguage";
+
+    const video = document.getElementById("video");
+    const startButton = document.getElementById("startButton");
+    const cameraSelect = document.getElementById("cameraSelect");
+    const mirrorCheckbox = document.getElementById("mirrorCheckbox");
+    const languageSelect = document.getElementById("languageSelect");
+    const screenshotButton = document.getElementById("screenshotButton");
+    const recordStartButton = document.getElementById("recordStartButton");
+    const recordStopButton = document.getElementById("recordStopButton");
+    const fullscreenButton = document.getElementById("fullscreenButton");
+    const statusEl = document.getElementById("status");
+
+    let currentLanguage = "ja";
+    let currentStatusKey = "notStarted";
+    let currentStatusVars = {};
+    let currentStatusIsError = false;
+
+    let currentStream = null;
+    let audioStreamForRecording = null;
+    let recordingStream = null;
+    let mediaRecorder = null;
+    let recordedChunks = [];
+
+    let recordingCanvas = null;
+    let recordingContext = null;
+    let recordingAnimationId = null;
+    let recordingCanvasStream = null;
+
+    let fileWritable = null;
+    let fileWriteChain = Promise.resolve();
+    let isDirectFileRecording = false;
+    let currentRecordingFilename = "";
+
+    function detectInitialLanguage() {
+      const savedLanguage = localStorage.getItem(languageStorageKey);
+      if (savedLanguage === "ja" || savedLanguage === "en") {
+        return savedLanguage;
+      }
+
+      const browserLanguages = navigator.languages && navigator.languages.length
+        ? navigator.languages
+        : [navigator.language];
+
+      for (const language of browserLanguages) {
+        if (!language) continue;
+
+        const normalized = language.toLowerCase();
+
+        if (normalized.startsWith("ja")) return "ja";
+        if (normalized.startsWith("en")) return "en";
+      }
+
+      return "en";
+    }
+
+    function t(key, vars = {}) {
+      const template = i18n[currentLanguage][key] || i18n.en[key] || key;
+
+      return template.replace(/\{(\w+)\}/g, (_, name) => {
+        return Object.prototype.hasOwnProperty.call(vars, name) ? vars[name] : "";
+      });
+    }
+
+    function applyLanguage(language, shouldSave = true) {
+      currentLanguage = language === "ja" ? "ja" : "en";
+
+      document.documentElement.lang = currentLanguage;
+      document.title = t("appTitle");
+      languageSelect.value = currentLanguage;
+
+      document.querySelectorAll("[data-i18n]").forEach(element => {
+        const key = element.dataset.i18n;
+        element.textContent = t(key);
+      });
+
+      if (shouldSave) {
+        localStorage.setItem(languageStorageKey, currentLanguage);
+      }
+
+      updateStatusText();
+      refreshCameraOptionLabels();
+    }
+
+    function setStatus(key, vars = {}, isError = false) {
+      currentStatusKey = key;
+      currentStatusVars = vars;
+      currentStatusIsError = isError;
+      updateStatusText();
+    }
+
+    function updateStatusText() {
+      statusEl.textContent = t(currentStatusKey, currentStatusVars);
+      statusEl.classList.toggle("error", currentStatusIsError);
+    }
+
+    function refreshCameraOptionLabels() {
+      const autoOption = cameraSelect.querySelector('option[value=""]');
+      if (autoOption) {
+        autoOption.textContent = t("autoSelect");
+      }
+
+      [...cameraSelect.options].forEach((option, index) => {
+        if (option.value === "") return;
+
+        if (option.dataset.deviceLabel) {
+          option.textContent = option.dataset.deviceLabel;
+        } else {
+          option.textContent = t("cameraNumber", { number: index });
+        }
+      });
+    }
+
+    function setRecordingUi(isRecording) {
+      recordStartButton.disabled = isRecording || !currentStream;
+      recordStopButton.disabled = !isRecording;
+      startButton.disabled = isRecording;
+      cameraSelect.disabled = isRecording;
+      languageSelect.disabled = false;
+      statusEl.classList.toggle("recording", isRecording);
+    }
+
+    function stopAudioStreamForRecording() {
+      if (!audioStreamForRecording) return;
+
+      for (const track of audioStreamForRecording.getTracks()) {
+        track.stop();
+      }
+
+      audioStreamForRecording = null;
+    }
+
+    function stopRecordingRelatedStreams() {
+      if (recordingAnimationId) {
+        cancelAnimationFrame(recordingAnimationId);
+        recordingAnimationId = null;
+      }
+
+      if (recordingCanvasStream) {
+        for (const track of recordingCanvasStream.getTracks()) {
+          track.stop();
+        }
+      }
+
+      if (recordingStream) {
+        for (const track of recordingStream.getTracks()) {
+          track.stop();
+        }
+      }
+
+      stopAudioStreamForRecording();
+
+      recordingCanvas = null;
+      recordingContext = null;
+      recordingCanvasStream = null;
+      recordingStream = null;
+    }
+
+    function stopCurrentStream() {
+      if (mediaRecorder && mediaRecorder.state !== "inactive") {
+        mediaRecorder.stop();
+      }
+
+      if (!currentStream) return;
+
+      for (const track of currentStream.getTracks()) {
+        track.stop();
+      }
+
+      currentStream = null;
+      video.srcObject = null;
+
+      screenshotButton.disabled = true;
+      recordStartButton.disabled = true;
+      recordStopButton.disabled = true;
+    }
+
+    function createTimestamp() {
+      const now = new Date();
+      const pad = value => String(value).padStart(2, "0");
+
+      return [
+        now.getFullYear(),
+        pad(now.getMonth() + 1),
+        pad(now.getDate())
+      ].join("") + "-" + [
+        pad(now.getHours()),
+        pad(now.getMinutes()),
+        pad(now.getSeconds())
+      ].join("");
+    }
+
+    function downloadBlob(blob, filename) {
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+
+      URL.revokeObjectURL(url);
+    }
+
+    function takeScreenshot() {
+      if (!currentStream || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
+        setStatus("screenshotNotReady", {}, true);
+        return;
+      }
+
+      const width = video.videoWidth;
+      const height = video.videoHeight;
+
+      if (!width || !height) {
+        setStatus("cannotGetVideoSize", {}, true);
+        return;
+      }
+
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+
+      const context = canvas.getContext("2d");
+
+      if (mirrorCheckbox.checked) {
+        context.translate(width, 0);
+        context.scale(-1, 1);
+      }
+
+      context.drawImage(video, 0, 0, width, height);
+
+      canvas.toBlob(blob => {
+        if (!blob) {
+          setStatus("screenshotFailed", {}, true);
+          return;
+        }
+
+        const filename = `webcam-${createTimestamp()}.png`;
+        downloadBlob(blob, filename);
+        setStatus("saved", { filename });
+      }, "image/png");
+    }
+
+    function getSupportedMimeType() {
+      const candidates = [
+        "video/webm;codecs=vp9,opus",
+        "video/webm;codecs=vp8,opus",
+        "video/webm;codecs=vp9",
+        "video/webm;codecs=vp8",
+        "video/webm"
+      ];
+
+      for (const mimeType of candidates) {
+        if (MediaRecorder.isTypeSupported(mimeType)) {
+          return mimeType;
+        }
+      }
+
+      return "";
+    }
+
+    function drawRecordingFrame() {
+      if (!recordingCanvas || !recordingContext) return;
+
+      const width = recordingCanvas.width;
+      const height = recordingCanvas.height;
+
+      recordingContext.save();
+      recordingContext.clearRect(0, 0, width, height);
+
+      if (mirrorCheckbox.checked) {
+        recordingContext.translate(width, 0);
+        recordingContext.scale(-1, 1);
+      }
+
+      recordingContext.drawImage(video, 0, 0, width, height);
+      recordingContext.restore();
+
+      recordingAnimationId = requestAnimationFrame(drawRecordingFrame);
+    }
+
+    async function prepareFileSystemWritable(filename) {
+      if (!window.showSaveFilePicker) {
+        return null;
+      }
+
+      const fileHandle = await window.showSaveFilePicker({
+        suggestedName: filename,
+        types: [
+          {
+            description: "WebM video",
+            accept: {
+              "video/webm": [".webm"]
+            }
+          }
+        ]
+      });
+
+      return await fileHandle.createWritable();
+    }
+
+    async function requestAudioStreamForRecording() {
+      try {
+        return await navigator.mediaDevices.getUserMedia({
+          video: false,
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true
+          }
+        });
+      } catch (error) {
+        console.warn(error);
+
+        if (error.name === "NotAllowedError") {
+          setStatus("audioPermissionDenied", {}, true);
+        } else if (error.name === "NotFoundError") {
+          setStatus("audioNotFound", {}, true);
+        } else {
+          setStatus("audioInUse", {}, true);
+        }
+
+        return null;
+      }
+    }
+
+    function buildRecordingStream(includeAudio) {
+      recordingStream = new MediaStream();
+
+      for (const videoTrack of recordingCanvasStream.getVideoTracks()) {
+        recordingStream.addTrack(videoTrack);
+      }
+
+      if (includeAudio && audioStreamForRecording) {
+        for (const audioTrack of audioStreamForRecording.getAudioTracks()) {
+          recordingStream.addTrack(audioTrack);
+        }
+      }
+
+      return recordingStream;
+    }
+
+    async function startRecording() {
+      if (!currentStream) {
+        setStatus("startCameraFirst", {}, true);
+        return;
+      }
+
+      if (!window.MediaRecorder) {
+        setStatus("mediaRecorderUnsupported", {}, true);
+        return;
+      }
+
+      const width = video.videoWidth;
+      const height = video.videoHeight;
+
+      if (!width || !height) {
+        setStatus("cannotGetVideoSize", {}, true);
+        return;
+      }
+
+      const shouldRecordAudio = window.confirm(t("askRecordAudio"));
+
+      currentRecordingFilename = `webcam-${createTimestamp()}.webm`;
+      recordedChunks = [];
+      fileWritable = null;
+      fileWriteChain = Promise.resolve();
+      isDirectFileRecording = false;
+      stopAudioStreamForRecording();
+
+      try {
+        fileWritable = await prepareFileSystemWritable(currentRecordingFilename);
+        isDirectFileRecording = !!fileWritable;
+      } catch (error) {
+        if (error.name === "AbortError") {
+          setStatus("savePickerCanceled");
+          return;
+        }
+
+        console.warn(error);
+        setStatus("directSaveFailedFallback");
+      }
+
+      let audioEnabled = false;
+
+      if (shouldRecordAudio) {
+        audioStreamForRecording = await requestAudioStreamForRecording();
+        audioEnabled = !!audioStreamForRecording && audioStreamForRecording.getAudioTracks().length > 0;
+      }
+
+      recordingCanvas = document.createElement("canvas");
+      recordingCanvas.width = width;
+      recordingCanvas.height = height;
+      recordingContext = recordingCanvas.getContext("2d");
+
+      recordingCanvasStream = recordingCanvas.captureStream(30);
+      buildRecordingStream(audioEnabled);
+
+      const mimeType = getSupportedMimeType();
+
+      try {
+        mediaRecorder = new MediaRecorder(
+          recordingStream,
+          mimeType ? { mimeType } : undefined
+        );
+      } catch (error) {
+        console.error(error);
+        stopRecordingRelatedStreams();
+        setStatus("recordingStartFailed", {}, true);
+        return;
+      }
+
+      mediaRecorder.addEventListener("dataavailable", event => {
+        if (!event.data || event.data.size === 0) return;
+
+        if (isDirectFileRecording && fileWritable) {
+          fileWriteChain = fileWriteChain.then(() => fileWritable.write(event.data));
+        } else {
+          recordedChunks.push(event.data);
+        }
+      });
+
+      mediaRecorder.addEventListener("stop", async () => {
+        stopRecordingRelatedStreams();
+
+        try {
+          if (isDirectFileRecording && fileWritable) {
+            await fileWriteChain;
+            await fileWritable.close();
+            setStatus("recordingSaved", { filename: currentRecordingFilename });
+          } else {
+            const blob = new Blob(recordedChunks, {
+              type: mediaRecorder.mimeType || "video/webm"
+            });
+
+            downloadBlob(blob, currentRecordingFilename);
+            setStatus("recordingSaved", { filename: currentRecordingFilename });
+          }
+        } catch (error) {
+          console.error(error);
+          setStatus("recordingSaveFailed", {}, true);
+        } finally {
+          recordedChunks = [];
+          fileWritable = null;
+          fileWriteChain = Promise.resolve();
+          isDirectFileRecording = false;
+          setRecordingUi(false);
+        }
+      });
+
+      drawRecordingFrame();
+
+      mediaRecorder.start(1000);
+
+      setRecordingUi(true);
+
+      const audioLabel = audioEnabled ? t("audioEnabled") : t("audioDisabled");
+
+      if (isDirectFileRecording) {
+        setStatus("recordingDirect", {
+          filename: currentRecordingFilename,
+          audio: audioLabel
+        });
+      } else {
+        setStatus("recordingFallback", {
+          audio: audioLabel
+        });
+      }
+    }
+
+    function stopRecording() {
+      if (!mediaRecorder || mediaRecorder.state === "inactive") {
+        return;
+      }
+
+      mediaRecorder.stop();
+      setStatus("savingRecording");
+    }
+
+    async function listCameras() {
+      if (!navigator.mediaDevices?.enumerateDevices) {
+        setStatus("cameraListUnsupported", {}, true);
+        return;
+      }
+
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const cameras = devices.filter(device => device.kind === "videoinput");
+
+      const selectedValue = cameraSelect.value;
+      cameraSelect.innerHTML = "";
+
+      const autoOption = document.createElement("option");
+      autoOption.value = "";
+      autoOption.textContent = t("autoSelect");
+      cameraSelect.appendChild(autoOption);
+
+      cameras.forEach((camera, index) => {
+        const option = document.createElement("option");
+        option.value = camera.deviceId;
+        option.dataset.deviceLabel = camera.label || "";
+        option.textContent = camera.label || t("cameraNumber", { number: index + 1 });
+        cameraSelect.appendChild(option);
+      });
+
+      if ([...cameraSelect.options].some(option => option.value === selectedValue)) {
+        cameraSelect.value = selectedValue;
+      }
+    }
+
+    async function startCamera() {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        setStatus("getUserMediaUnsupported", {}, true);
+        return;
+      }
+
+      stopCurrentStream();
+      setStatus("cameraStarting");
+
+      const deviceId = cameraSelect.value;
+
+      const constraints = {
+        video: deviceId
+          ? { deviceId: { exact: deviceId } }
+          : {
+              width: { ideal: 1920 },
+              height: { ideal: 1080 }
+            },
+        audio: false
+      };
+
+      try {
+        currentStream = await navigator.mediaDevices.getUserMedia(constraints);
+        video.srcObject = currentStream;
+
+        await video.play();
+
+        screenshotButton.disabled = false;
+        recordStartButton.disabled = false;
+        recordStopButton.disabled = true;
+
+        await listCameras();
+
+        const track = currentStream.getVideoTracks()[0];
+        setStatus("showingCamera", {
+          name: track.label || t("genericCamera")
+        });
+      } catch (error) {
+        console.error(error);
+
+        let key = "cannotStartCamera";
+
+        if (error.name === "NotAllowedError") {
+          key = "cameraPermissionDenied";
+        } else if (error.name === "NotFoundError") {
+          key = "cameraNotFound";
+        } else if (error.name === "NotReadableError") {
+          key = "cameraInUse";
+        } else if (error.name === "OverconstrainedError") {
+          key = "cameraConstraintFailed";
+        }
+
+        setStatus(key, {}, true);
+        screenshotButton.disabled = true;
+        recordStartButton.disabled = true;
+        recordStopButton.disabled = true;
+      }
+    }
+
+    startButton.addEventListener("click", startCamera);
+
+    cameraSelect.addEventListener("change", () => {
+      startCamera();
+    });
+
+    mirrorCheckbox.addEventListener("change", () => {
+      video.classList.toggle("mirrored", mirrorCheckbox.checked);
+    });
+
+    languageSelect.addEventListener("change", () => {
+      applyLanguage(languageSelect.value, true);
+    });
+
+    window.addEventListener("languagechange", () => {
+      const savedLanguage = localStorage.getItem(languageStorageKey);
+
+      if (!savedLanguage) {
+        applyLanguage(detectInitialLanguage(), false);
+      }
+    });
+
+    screenshotButton.addEventListener("click", takeScreenshot);
+    recordStartButton.addEventListener("click", startRecording);
+    recordStopButton.addEventListener("click", stopRecording);
+
+    fullscreenButton.addEventListener("click", async () => {
+      const stage = document.querySelector(".stage");
+
+      try {
+        if (!document.fullscreenElement) {
+          await stage.requestFullscreen();
+        } else {
+          await document.exitFullscreen();
+        }
+      } catch (error) {
+        console.error(error);
+        setStatus("fullscreenFailed", {}, true);
+      }
+    });
+
+    window.addEventListener("beforeunload", () => {
+      stopCurrentStream();
+      stopRecordingRelatedStreams();
+    });
+
+    applyLanguage(detectInitialLanguage(), false);
+
+    listCameras().catch(error => {
+      console.warn(error);
+    });
+  </script>
+</body>
+</html>
